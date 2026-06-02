@@ -1,77 +1,64 @@
 pipeline {
     agent any
-    environment {
-        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
-        PATH = "${env.JAVA_HOME}/bin:${env.PATH}"
+
+    triggers {
+        cron('H 19 * * *')
     }
+
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git branch: '25s', url: 'https://github.com/VellankiMahesh7779/my-new-project.git'
+                git branch: 'main',
+                    url: 'https://github.com/VellankiMahesh7779/my-new-project.git'
             }
         }
 
-        stage('Build') {
-            parallel {
-                stage('Build C++') {
-                    steps {
-                        dir('CPP_Project') {
-                            sh '''
-                                if [ -f CMakeLists.txt ]; then
-                                    mkdir -p build
-                                    cd build
-                                    cmake ..
-                                    make -j4
-                                else
-                                    echo "No CMakeLists.txt found in CPP_Project"
-                                fi
-                            '''
-                        }
-                    }
-                }
-                stage('Build Java') {
-                    steps {
-                        dir('Java_Project') {
-                            sh 'javac *.java || echo "No Java files found in Java_Project"'
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Run Tests') {
-            parallel {
-                stage('C++ Tests') {
-                    steps {
-                        dir('CPP_Project/build') {
-                            sh 'ctest || echo "No C++ tests found"'
-                        }
-                    }
-                }
-                stage('Java Tests') {
-                    steps {
-                        dir('Java_Project') {
-                            sh 'echo "Add JUnit or other test commands here"'
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Package / Deploy') {
+        stage('Build C++ (CPP_Project)') {
             steps {
-                echo "Add packaging or deployment steps here"
+                dir('CPP_Project') {
+                    sh '''#!/bin/bash
+                        set -o pipefail
+                        if [ -f CMakeLists.txt ]; then
+                            echo "=== Building C++ project inside CPP_Project ==="
+                            mkdir -p build
+                            cd build
+                            cmake .. 2>&1 | tee ../cpp_build.log
+                            make 2>&1 | tee -a ../cpp_build.log
+                        else
+                            echo "⚠️ No CMakeLists.txt found in CPP_Project"
+                            exit 1
+                        fi
+                    '''
+                }
             }
         }
+
+        stage('Build Java (Java_Project)') {
+            steps {
+                dir('Java_Project') {
+                    sh '''#!/bin/bash
+                        set -o pipefail
+                        if ls *.java >/dev/null 2>&1; then
+                            echo "=== Compiling Java project inside Java_Project ==="
+                            javac *.java 2>&1 | tee java_build.log
+                        else
+                            echo "⚠️ No Java files found in Java_Project"
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+        }
+
+        // ...existing code...
     }
 
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo "✅ Build completed successfully. Check build logs for details."
         }
         failure {
-            echo 'Pipeline failed. Check logs for details.'
+            echo "❌ Build failed! Check the respective build.log files."
         }
     }
 }
-
